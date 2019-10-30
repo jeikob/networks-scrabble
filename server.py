@@ -10,6 +10,7 @@ MAX_PLAYERS = 4
 JOB_NUMBERS = [i for i in range(MAX_PLAYERS+1)]
 numPlayers = 0
 playerNames = ['Client' + str(i+1) for i in range(MAX_PLAYERS)]
+playerScores = []
 
 queue = Queue()
 clients = []
@@ -28,9 +29,9 @@ def HELLO(skt):
     skt.send(omsg.encode('ascii'))
 
 def QUIT(skt):
-    print('Connection Closed.\n')
-    omsg = 'GOODBYE\n'
-    skt.send(omsg.encode('ascii'))
+    print('GOODBYE\n')
+    # omsg = 'GOODBYE\n'
+    # skt.send(omsg.encode('ascii'))
     skt.close()
     exit()
 
@@ -79,7 +80,9 @@ def acceptConnections():
         clients.append(client)
         addresses.append(address)
         numPlayers += 1
-        print('Got connection from ' + address[0] + '\n')
+        playerNames[numPlayers-1] = address[0]
+        USERJOIN(numPlayers)
+        # print('Got connection from ' + address[0] + '\n')
 
 def createSocket():
     global port
@@ -135,7 +138,7 @@ def handleInput(i): # Function to handle each individual client's inputs to the 
         if not imsg.startswith('HELLO '):
             print('GOODBYE Client sent invalid response. Connection closed.\n')
             QUIT(clients[i-1])
-        OK(clients[i-1], 'Scrabble Server at your service.')
+        OK(clients[i-1], 'Please send a username, otherwise you will be known as ' + playerNames[i-1])
         break
     while True:
         imsg = clients[i-1].recv(1024).decode('ascii')
