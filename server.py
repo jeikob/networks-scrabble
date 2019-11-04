@@ -2,15 +2,46 @@ import socket
 import platform
 import re
 import sys
+from ast import literal_eval as make_tuple
 import threading
 from queue import Queue
 
 # GLOBAL VARIABLES
 MAX_PLAYERS = 4
 JOB_NUMBERS = [i for i in range(MAX_PLAYERS+1)]
+
 numPlayers = 0
+numReady = 0
 playerNames = ['Client' + str(i+1) for i in range(MAX_PLAYERS)]
-playerScores = []
+playerScores = [0 for i in range(MAX_PLAYERS)]
+playerTiles = [[],[],[],[]]
+
+letterScore = dict.fromkeys(['A','E','I','L','N','O','R','S','T','U'], 1)
+letterScore.update(dict.fromkeys(['D','G'], 2))
+letterScore.update(dict.fromkeys(['B','C','M','P'], 3))
+letterScore.update(dict.fromkeys(['F','H','V','W','Y'], 4))
+letterScore.update(dict.fromkeys(['K'], 5))
+letterScore.update(dict.fromkeys(['J','X'], 8))
+letterScore.update(dict.fromkeys(['Q','Z'], 10))
+
+board = [[('0',4),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',4),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0),('0',4)],
+        [('0',0),('0',3),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',3),('0',0)],
+        [('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',1),('0',0),('0',1),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0)],
+        [('0',1),('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0),('0',1)],
+        [('0',0),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',0)],
+        [('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0)],
+        [('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',1),('0',0),('0',1),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0)],
+        [('0',4),('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0),('0',4)],
+        [('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',1),('0',0),('0',1),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0)],
+        [('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0)],
+        [('0',0),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',0)],
+        [('0',1),('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0),('0',1)],
+        [('0',0),('0',0),('0',3),('0',0),('0',0),('0',0),('0',1),('0',0),('0',1),('0',0),('0',0),('0',0),('0',3),('0',0),('0',0)],
+        [('0',0),('0',3),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',2),('0',0),('0',0),('0',0),('0',3),('0',0)],
+        [('0',4),('0',0),('0',0),('0',1),('0',0),('0',0),('0',0),('0',4),('0',0),('0',0),('0',0),('0',1),('0',0),('0',0),('0',4)]]
+
+tilePool = {'A':9, 'B':2, 'C':2, 'D':4, 'E':12, 'F':2, 'G':3, 'H':2, 'I':9, 'J':1, 'K':1, 'L':4, 'M':2, 'N':6, 'O':8, 'P':2, 'Q':1, 'R':6, 'S':4, 'T':6, 'U':4, 'V':2, 'W':2, 'X':1, 'Y':2, 'Z':1}
+totalTiles = 9+2+2+4+12+2+3+2+9+1+1+4+2+6+8+2+1+6+4+6+4+2+2+1+2+1
 
 queue = Queue()
 clients = []
@@ -65,6 +96,63 @@ def USERJOIN(clientNum):
     for i in range(numPlayers):
         clients[i].send(omsg.encode('ascii'))
 
+def READY():
+    global numReady
+    numReady += 1
+
+def STARTING():
+    omsg = 'STARTING' + '\n'
+    print(omsg)
+    for i in range(numPlayers):
+        clients[i].send(omsg.encode('ascii'))
+
+def SCORE(clientNum, addNum):
+    playerScores[clientNum-1] += addNum
+    omsg = 'SCORE ' + str(playerScores[clientNum-1]) + ' ' + playerNames[clientNum-1] + '\n'
+    print(omsg)
+    for i in range(numPlayers):
+        clients[i].send(omsg.encode('ascii'))
+
+def BOARDPUSH():
+    boardString = ''
+    for i in range(len(board)):
+        for j in range(len(board[i])):
+            boardString += ('('+str(board[i][j][0])+','+str(board[i][j][1])+')')
+        boardString += '\n'
+    for k in range(numPlayers):
+        clients[k].send(boardString.encode('ascii'))
+
+def PLACE(clientNum, tilesInput): # "PLACE (h,3,4) (e,3,5) (l,3,6) (l,3,7) (o,3,8)"
+    tilesStrings = tilesInput.split(" ") # ["PLACE", "(h,3,4)", "(e,3,5)", "(l,3,6)", "(l,3,7)", "(o,3,8)"]
+    tiles = [tuple((tpl.split(",")[0].upper(),int(tpl.split(",")[1]),int(tpl.split(",")[2]))) for tpl in [s.strip("()") for s in tilesStrings[1:]][:-1]]
+    tiles.append(tuple((tilesStrings[len(tilesStrings)-1][:-1][:-1].split(",")[0][1].upper(),int(tilesStrings[len(tilesStrings)-1][:-1][:-1].split(",")[1]),int(tilesStrings[len(tilesStrings)-1][:-1][:-1].split(",")[2]))))
+    wordScore = 0
+    for t in tiles:
+        xpos = t[1]
+        ypos = t[2]
+        board[xpos][ypos] = tuple((t[0], board[xpos][ypos][1]))
+        if(board[xpos][ypos][1] == 0):
+            wordScore += letterScore[t[0]]
+        elif(board[xpos][ypos][1] == 1):
+            wordScore += letterScore[t[0]]*2
+        elif(board[xpos][ypos][1] == 2):
+            wordScore += letterScore[t[0]]*3
+        elif(board[xpos][ypos][1] == 3):
+            wordScore += letterScore[t[0]]
+            wordScore *= 2
+        elif(board[xpos][ypos][1] == 4):
+            wordScore += letterScore[t[0]]
+            wordScore *= 3
+    SCORE(clientNum, wordScore)
+
+def TILES():
+    print('')
+
+def WINNER(clientNum):
+    omsg = 'WINNER ' + str(playerScores[clientNum-1]) + ' ' + playerNames[clientNum-1] + '\n'
+    print(omsg)
+    for i in range(numPlayers):
+        clients[i].send(omsg.encode('ascii'))
 
 ###################################################################################################
 
@@ -148,6 +236,15 @@ def handleInput(i): # Function to handle each individual client's inputs to the 
             name = ' '.join(imsg.split()[1:])
             USERSET(clients[i-1], name, i-1)
             OK(clients[i-1], 'Name set!')
+        elif (imsg.split()[0] == 'WIN'):
+            WINNER(i)
+        elif (imsg.split()[0] == 'ADD1'):
+            SCORE(i, 1)
+        elif (imsg.split()[0] == 'BOARDPUSH'):
+            BOARDPUSH()
+        elif (imsg.split()[0] == 'PLACE'):
+            PLACE(i, imsg)
+            BOARDPUSH()
         else:
             print(playerNames[i-1] + ' says:', imsg)
 

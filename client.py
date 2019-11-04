@@ -45,7 +45,7 @@ def work(): # Handle next job in the job queue, 0 Accepts new connections, 1-4 H
 def handleInput():
     while True:
         if isDone == False:
-            imsg = skt.recv(1024).decode('ascii')
+            imsg = skt.recv(4096).decode('ascii')
             print(imsg)
 
 def handleOutput():
@@ -72,7 +72,7 @@ def QUIT(skt):
     global isDone
     omsg = 'QUIT\n'
     skt.send(omsg.encode('ascii'))
-    imsg = skt.recv(1024).decode('ascii')
+    imsg = skt.recv(4096).decode('ascii')
     print(imsg)
     skt.close()
     isDone = True
